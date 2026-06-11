@@ -21,4 +21,4 @@ Run
 for more info.
 Example usage: 
 
-> python make_genetree_csv.py -d=my_exp_p1e7_dl2_t1_s300/ -o test.csv
+> python make_genetree_csv.py -d my_exp_p1e7_dl2_t1_s300/ -o test.csv
