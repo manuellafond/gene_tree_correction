@@ -1,0 +1,382 @@
+import math
+import os
+import sys
+import subprocess
+import shutil
+from pathlib import Path
+
+import copy
+from ete3 import Tree
+import ete3
+
+#sys.path.insert(0, 'scripts')
+#sys.path.insert(0, os.path.join("tools", "phyldog"))
+#sys.path.insert(0, os.path.join("tools", "trees"))
+
+#import analyze_tree
+#import experiments as exp
+#import discordance_rate
+#import sample_missing_data
+
+
+simphy_path = "SimPhy/"	#set from outside with generate_families_with_simphy.simphy_path = 'my/path/to/SimPhy/'
+
+class SimphyParameters():
+  def __init__(self):
+    self.tag = "dtl"
+    self.prefix = "ssim"
+    self.speciations_per_year = 0.000000005
+    self.extinctions_per_year = 0  #0.0000000049
+    self.species_taxa = 25
+    self.families_number = 100
+    self.bl = 1.0    
+    self.loss_rate = 1.0
+    self.dup_rate = 1.0
+    self.transfer_rate = 1.0
+    self.gene_conversion_rate = 0.0
+    self.sites = 100
+    self.model = "GTR"
+    self.seed = 42
+    self.distance_hgt = False
+    self.population = 10
+    self.miss_species = 0.0
+    self.miss_fam = 0.0
+    self.subst_heterogeneity = True
+
+
+def rescale_bl(input_tree, output_tree, scale):
+  tree = read_tree(input_tree)
+  for node in tree.traverse("postorder"):
+    node.dist *= scale
+  tree.write(outfile=output_tree, format = 5, dist_formatter= "%.15f")
+
+
+
+def build_config_file(parameters, output_dir):
+  config_file = os.path.join(output_dir, "simphy_config.txt")
+  with open(config_file, "w") as writer:
+    writer.write("// SPECIES TREE\n")
+    # number of replicates
+    writer.write("-RS 1 // number of replicates\n")
+    # speciation rates (speciation per yer)
+    writer.write("-sb f:" + str(parameters.speciations_per_year) + "\n")
+    writer.write("-sd f:" + str(parameters.extinctions_per_year) + "\n")
+    # number of species taxa 
+    writer.write("-sl f:" + str(parameters.species_taxa) + "\n")
+    # species tree height in years (I don't understand this)
+    writer.write("-st ln:21.25,0.2\n")
+    # substitution rate
+    #writer.write("-su ln:-21.9," + str(0.1 * parameters.bl) + "\n")
+    if (parameters.subst_heterogeneity):
+      writer.write("-su ln:-21.9,0.1\n")
+    else:
+      writer.write("-su f:0.0000000001\n")
+    # L, D, T global rates 
+    lognormal_scale = 1.0
+    lognormal_location = 0.0 #math.log(1.0 - 0.5 * pow(lognormal_scale, 2.0))
+    #lognormal_mean = math.exp((lognormal_location + pow(lognormal_scale, 2.0)) / 2.0)
+    loss_freq =     0.00000000049 * parameters.loss_rate 
+    dup_freq =      0.00000000049 * parameters.dup_rate
+    transfer_freq = 0.00000000049 * parameters.transfer_rate 
+    gene_conversion_freq = 0.00000000049 * parameters.gene_conversion_rate 
+
+    assert(loss_freq == dup_freq)
+    writer.write("-gd f:" + str(loss_freq) + "\n")
+    writer.write("-gb f:" + str(dup_freq) + "\n")
+    writer.write("-gt f:" + str(transfer_freq) +"\n")
+    writer.write("-gg f:" + str(gene_conversion_freq) +"\n")
+
+    # L, D, T per family rates
+    writer.write("-ld sl:" + str(lognormal_location) + "," + str(lognormal_scale) + ",gd\n")
+    writer.write("-lb f:ld\n")
+    writer.write("-lt sl:" + str(lognormal_location) + "," + str(lognormal_scale) + ",gt\n")
+    writer.write("-lg f:gg\n")
+    #writer.write("-lt f:ld\n")
+    
+    lk = 0
+    if (parameters.distance_hgt):
+        lk = 1
+    writer.write("-lk " + str(lk) + "\n")
+    
+    #writer.write("-lb sl:" + str(lognormal_location) + "," + str(lognormal_scale) + ",gb\n")
+    #writer.write("-lt sl:" + str(lognormal_location) + "," + str(lognormal_scale) + ",gt\n")
+
+    writer.write("// POPULATION\n")
+    writer.write("-SP f:" + str(parameters.population) + "\n")
+
+    writer.write("// LOCUS\n")
+    writer.write("-rl f:" + str(parameters.families_number) + " // locus (gene family) per replicate\n")
+
+    writer.write("// Subsitution rates heterogeneity parameters\n")
+    if (parameters.subst_heterogeneity):
+      writer.write("-hs ln:1.5,1\n")
+      writer.write("-hl ln:1.551533,0.6931472\n")
+      writer.write("-hg ln:1.5,1\n")
+    else:
+      pass
+
+    writer.write("// GENERAL\n")
+    writer.write("-cs " + str(parameters.seed) + "\n") 
+    writer.write("-O " + str(output_dir) + " // output directory\n")
+    writer.write("-OM 1 // output the mappings\n")
+    writer.write("-OC 1 // log the configuration file\n")
+    writer.write("-OD 1 // log the configuration file\n")
+    writer.write("-OP 1 // log the configuration file\n")
+
+  return config_file
+
+def build_indelible_config_file(parameters, output_dir):
+  config_file = os.path.join(output_dir, "indelible_config.txt")
+  with open(config_file, "w") as writer:
+    
+    sites_mean = parameters.sites
+    sites_teta = 0.25
+    sites_mu = 0
+    sites_scale = sites_mean / math.exp(sites_mu + sites_teta * sites_teta / 2.0)
+    #sites_min = str(20)
+    #sites_max = str(2 * int(parameters.sites) - 20)
+    writer.write("[TYPE] NUCLEOTIDE 1\n") # DNA using algorithm 1 
+    writer.write("[SETTINGS] [fastaextension] fasta\n")
+    writer.write("[SIMPHY-UNLINKED-MODEL] modelA \n")
+    if ("GTR" == parameters.model):
+      writer.write("  [submodel] GTR $(rd:16,3,5,5,6,15) // GTR with rates from a Dirichlet  \n")
+      writer.write("  [statefreq] $(d:36,26,28,32)  // frequencies for T C A G sampled from a Dirichlet \n")
+      writer.write("[rates] 0 $(e:2) 0 // Site-specific rate heterogeneities: 0 p-inv, alpha from an E(2) and using a continuous gamma distribution.\n")
+    else:
+      assert(False)
+
+    #writer.write("[SIMPHY-PARTITIONS] simple [1.0 modelA $(u::" + sites_min + "," + sites_max + ")]\n")
+    writer.write("[SIMPHY-PARTITIONS] simple [1.0 modelA $(sl:" + str(sites_mu) + "," + str(sites_teta) + "," + str(sites_scale) + ")]\n")
+    #writer.write("[SIMPHY-PARTITIONS] simple [1.0 modelA $(f:" + str(parameters.sites) ")]\n")
+
+    writer.write("[SIMPHY-EVOLVE] 1 dataset \n")
+
+  return config_file
+  
+
+
+def build_mapping(simphy_mapping, phyldog_mapping):
+  lines = open(simphy_mapping).readlines()[1:]
+  dico = {}
+  for line in lines:
+    if (not line.startswith("'")):
+      continue
+    split = line.replace("'", "").split("\t")
+    gene = split[0]
+    species = gene.split("_")[0]
+    if (not species in dico):
+      dico[species] = []
+    dico[species].append(gene)
+  with open(phyldog_mapping, "w") as phyldog_writer:
+    for species, genes in dico.items():
+      phyldog_writer.write(species + ":" + ";".join(genes) + "\n")
+
+
+
+
+
+def run_simphy(output_dir, config_file):
+  commands = []
+
+  commands.append(os.path.join(simphy_path, "bin", "simphy"))
+  commands.append("-I")
+  commands.append(config_file)
+  
+  os.system(' echo "' + " ".join(commands) + '" >> commands.txt')
+  
+  subprocess.check_call(commands)
+
+  simphy_output_dir = os.path.join(output_dir, "1")
+  species_tree = os.path.join(simphy_output_dir, "s_tree.trees")
+  #generations = analyze_tree.check_ultrametric_and_get_length(species_tree)
+
+
+def rescale_gene_tree_bl(output_dir, bl):
+  simphy_output_dir = os.path.join(output_dir, "1")
+  bl = float(bl)
+  print("BEFORE RESCALE")
+  if (bl == 1.0):
+    return
+  families = []
+  print("outputdir " + simphy_output_dir)
+  for f in os.listdir(simphy_output_dir):
+    if (f.startswith("g_trees")):
+      families.append("family_" + f.split("g_trees")[1].split(".")[0])
+  for family in families:
+    family_number = family.split("_")[1] 
+    # true trees
+    gene_tree = os.path.join(simphy_output_dir, "g_trees" + family_number + ".trees")
+    rescale_bl.rescale_bl(gene_tree, gene_tree, bl)
+
+def run_indelible(output_dir, config_file, cores, _seed = 42):
+  commands = []
+  seed = str(_seed)
+  commands.append("perl")
+  commands.append(os.path.join(simphy_path, "scripts", "INDELIble_wrapper.pl"))
+  commands.append(output_dir)
+  commands.append(config_file)
+  commands.append(seed)
+  commands.append(str(cores))
+  
+  os.system(' echo "' + " ".join(commands) + '" >> commands.txt')
+  
+  subprocess.check_call(commands)
+  
+
+def copy_trim(input_file, output_file):
+  s = open(input_file).read()
+  open(output_file, "w").write(s.replace(" ", ""))
+
+def export_to_family(output_dir, replicate = 1):
+  print("Start exporting to families format...")
+  fam.init_top_directories(output_dir)
+  simphy_output_dir = os.path.join(output_dir, str(replicate))
+  families = []
+  for f in os.listdir(simphy_output_dir):
+    if (f.startswith("g_trees")):
+      families.append("family_" + f.split("g_trees")[1].split(".")[0])
+  fam.init_families_directories(output_dir, families)
+  # species tree
+  species = os.path.join(simphy_output_dir, "s_tree.trees")
+  shutil.copyfile(species, fam.get_species_tree(output_dir))
+  for family in families:
+    family_number = family.split("_")[1] 
+    # true trees
+    alignment = os.path.join(output_dir, "1", "dataset_" + family_number + ".fasta")
+    
+    # check that the alignment contain all characters (otherwise phyldog crashes)
+    alignment_content = open(alignment).read()
+    ok = True
+    for c in ['A', 'C', 'G', 'T']:
+      if (not c in alignment_content):
+        ok = False
+    if (not ok):
+      shutil.rmtree(fam.get_family_path(output_dir, family))
+      print("rm " + fam.get_family_path(output_dir, family))
+      continue
+
+    gene_tree = os.path.join(simphy_output_dir, "g_trees" + family_number + ".trees")
+    shutil.copy(gene_tree, fam.get_true_tree(output_dir, family))
+    
+    simphy_mapping = os.path.join(simphy_output_dir, family_number + "l1g.maplg")
+    phyldog_mapping = fam.get_mappings(output_dir, family)
+    build_mapping(simphy_mapping,  phyldog_mapping)
+    # alignment
+    # true trees
+    # alignment
+    copy_trim(alignment, fam.get_alignment(output_dir, family))
+    #copy_and_rename_alignment(alignment, fam.get_alignment(out, family), family)
+  fam.postprocess_datadir(output_dir)
+
+def get_output_dir(parameters, root_output):
+  res = parameters.prefix
+  res += "_" + parameters.tag
+  res += "_s" + str(parameters.species_taxa)
+  res += "_f" + str(parameters.families_number)
+  res += "_sites" + str(parameters.sites)
+  res += "_" + str(parameters.model).replace("+", "")
+  res += "_bl" + str(parameters.bl)
+  res += "_d" + str(parameters.dup_rate)
+  res += "_l" + str(parameters.loss_rate)
+  res += "_t" + str(parameters.transfer_rate)
+  res += "_gc" + str(parameters.gene_conversion_rate)
+  res += "_p0.0"
+  res += "_pop" + str(parameters.population)
+  res += "_ms" + str(parameters.miss_species)
+  res += "_mf" + str(parameters.miss_fam)
+  """
+  res += "_hgt" 
+  if (parameters.distance_hgt):
+    res += "dist"
+  else:
+    res += "unif"
+  """
+  res += "_seed" + str(parameters.seed)
+  return os.path.join(root_output, res)
+
+def compute_and_write_discordance_rate(parameters, output_dir):
+  d = 0.0
+  if (int(parameters.population) > 20):
+      if (parameters.dup_rate == 0.0 and parameters.transfer_rate == 0.0):
+        d = discordance_rate.get_discordance_rate(output_dir)
+      else:
+        no_dtl_parameters = copy.deepcopy(parameters) 
+        no_dtl_parameters.dup_rate = 0.0
+        no_dtl_parameters.loss_rate = 0.0
+        no_dtl_parameters.transfer_rate = 0.0
+        temp_output_dir = generate_from_parameters(no_dtl_parameters, output_dir)
+        d = fam.get_discordance_rate(temp_output_dir)
+        shutil.rmtree(temp_output_dir)
+    
+  print("Discordance rate: " + str(d))
+  fam.write_discordance_rate(output_dir, d)
+
+
+def generate_from_parameters(parameters, root_output, skip_simphy = False):
+  cores = 1
+  
+  output_dir = get_output_dir(parameters, root_output)
+  print(f"output_dir={output_dir}")
+  Path(output_dir).mkdir(parents=True, exist_ok=True)   #os.mkdir(output_dir)
+  
+  #exp.reset_dir(output_dir)
+  config_file = build_config_file(parameters, output_dir)
+  
+  if not skip_simphy:
+      run_simphy(output_dir, config_file)
+  
+  
+  rescale_gene_tree_bl(output_dir, parameters.bl)
+   
+  indelible_config_file = build_indelible_config_file(parameters, output_dir)
+  
+  
+  run_indelible(output_dir, indelible_config_file, cores, _seed = parameters.seed)
+  
+  
+
+  #export_to_family(output_dir)
+  #compute_and_write_discordance_rate(parameters, output_dir)
+  
+  print("Done! output in " + output_dir) 
+  return output_dir
+
+def generate_simphy(tag, species, families, sites, model, bl_factor, dup_rate, loss_rate, transfer_rate, gene_conversion_rate, perturbation, population, miss_species, miss_fam, root_output, seed):
+  p = SimphyParameters()
+  p.tag = tag
+  p.species_taxa = int(species)
+  p.families_number = int(families)
+  p.sites = int(sites)
+  p.model = model
+  p.bl = float(bl_factor)
+  p.dup_rate = float(dup_rate)
+  p.loss_rate = float(loss_rate)
+  p.transfer_rate = float(transfer_rate)
+  p.gene_conversion_rate = float(gene_conversion_rate)
+  p.seed = int(seed)
+  p.population = population
+  p.miss_species = float(miss_species)
+  print(miss_fam)
+  p.miss_fam = float(miss_fam)
+  print(perturbation)
+  assert(float(perturbation) == 0.0)
+  if (p.miss_species != 0.0 or p.miss_fam != 0.0):
+    p.prefix = p.prefix + "temp"
+    temp_output_dir = generate_from_parameters(p, root_output)
+    p.prefix = p.prefix[:-4]
+    output_dir = get_output_dir(p, root_output) 
+    print("Now move " + temp_output_dir + " to " + output_dir)
+    sample_missing_data.sample_missing_data(temp_output_dir, output_dir, p.miss_species, p.miss_fam)
+    #shutil.rmtree(temp_output_dir)
+  else:
+    generate_from_parameters(p, root_output)
+   
+
+if (__name__ == "__main__"): 
+  parameters = SimphyParameters()
+  #parameters.prefix = "/hits/fast/cme/benoit/github/BenoitDatasets/coucou"
+  generate_from_parameters(parameters, exp.families_datasets_root)
+
+
+
+#
