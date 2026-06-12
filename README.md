@@ -10,6 +10,13 @@ Example usage:
 
 > python run_exp.py --phylomethod=iqtree --skipexisting -r 25 --sites=300 --dlrate=2 --trate=1 --pop=10000000 -o my_exp_p1e7_dl2_t1_s300
 
+Note, there are various arguments to specify the path to the required executables (iqtree, eccetera, simphy).
+
+There is also the script
+
+> python run_all.py
+
+which will just run every combination of dl rate, tr rate, and population.
 
 # Generating csv data
 
@@ -30,3 +37,5 @@ If you have multpiple directories with data, add the flag "--append" to the abov
 
 test.csv contains a csv of partial experiments with dup-loss rate x2, transfer rate x1, no ILS, 300 sites.
 test_pivot.ods is the same, but there is a tab with a pivot table that analyzes the RF with respect to average bootstrap.
+
+The python scripts that contain "speciesrax" in the name were there to test simphy generation and inference with speciesrax and others.  Also, the directory "archive" contains several older files used to validate the methodology.
