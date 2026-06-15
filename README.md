@@ -2,7 +2,7 @@
 
 The main script to call is run_exp.py.  It launches a given number of simphy runs along with indelible alignments, reconstructs all gene trees with iqtree, corrects them with eccetera, and then compares the iqtree and eccetera trees with the true gene trees.  For each run, a direcotry is created.  Each such directory contains an "rf" directory containing the rf distances, one per file. 
 
-Dependencies: iqtree and Simphy must be installed.  run_exp.py needs ete3 and Biopython.
+Dependencies: iqtree, Simphy, and INDELible must be installed.  run_exp.py needs ete3 and Biopython.
 
 Please use
 
