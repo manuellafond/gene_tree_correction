@@ -22,6 +22,8 @@ for dl, tr, pop, sites in product(dlmult_list, transfermult_list, pop_list, site
 
     #eg run: python run_exp.py --phylomethod=iqtree --skipexisting -r 25 --sites=300 --dlrate=2 --trate=1 --pop=10000000 -o my_exp_p1e7_dl2_t1_s300
     
+    pop = int(pop)  #otherwise it uses float and causes errors
+    
     outdir = f"allexp_p{pop}_dl{dl}_t{tr}_s{sites}"
     
     command = f"python run_exp.py --phylomethod=iqtree --skipexisting -r {runs} --sites={sites} --dlrate={dl} --trate={tr} --pop={pop} -o {outdir}"
