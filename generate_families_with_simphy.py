@@ -20,6 +20,7 @@ import ete3
 
 
 simphy_path = "SimPhy/"	#set from outside with generate_families_with_simphy.simphy_path = 'my/path/to/SimPhy/'
+simphy_bin = os.path.join(simphy_path, "bin", "simphy")
 
 class SimphyParameters():
   def __init__(self):
@@ -178,7 +179,8 @@ def build_mapping(simphy_mapping, phyldog_mapping):
 def run_simphy(output_dir, config_file):
   commands = []
 
-  commands.append(os.path.join(simphy_path, "bin", "simphy"))
+  #commands.append(os.path.join(simphy_path, "bin", "simphy"))
+  commands.append(simphy_bin)
   commands.append("-I")
   commands.append(config_file)
   
@@ -219,7 +221,7 @@ def run_indelible(output_dir, config_file, cores, _seed = 42):
   commands.append(str(cores))
   
   os.system(' echo "' + " ".join(commands) + '" >> commands.txt')
-  
+
   subprocess.check_call(commands)
   
 
