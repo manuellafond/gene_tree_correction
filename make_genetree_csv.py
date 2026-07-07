@@ -62,10 +62,16 @@ def get_rf_iqtree(basedir, treenum):
 
 
 
-def get_rf_eccetera(basedir, treenum):
+def get_rf_eccetera(basedir, treenum, bootstrap_threshold):
     
     #TODO: copypasta from previous function
-    filename = os.path.join(basedir, "rf", "eccetera_" + str(treenum) + ".rf")
+    
+    if bootstrap_threshold == 70:
+        filename = os.path.join(basedir, "rf", "eccetera_" + str(treenum) + ".rf")
+        if not os.path.isfile(filename):
+            filename = os.path.join(basedir, "rf", "eccetera70_" + str(treenum) + ".rf")
+    else:
+        filename = os.path.join(basedir, "rf", f"eccetera{bootstrap_threshold}_" + str(treenum) + ".rf")
     
     if not os.path.isfile(filename):
         return -1
@@ -182,7 +188,7 @@ outfile = open(args.outfile, write_mode)
 
 
 
-header = "seed,gtnum,sites,duprate,lossrate,transferrate,pop,indelible_rate,avg_bs_iqtree,avg_bs_iqtree_bin,nb_leaves,avg_brlen,height,max_copy,mean_copy,rf_eccetera,rf_iqtree"
+header = "seed,gtnum,sites,duprate,lossrate,transferrate,pop,indelible_rate,avg_bs_iqtree,avg_bs_iqtree_bin,nb_leaves,avg_brlen,height,max_copy,mean_copy,rf_eccetera_70,rf_eccetera_50,rf_iqtree"
 #print(header)
 
 if not args.append:
@@ -243,7 +249,10 @@ for childdir in Path(directory).iterdir():
             supps = []
             util.count_support_bins(bs_iqtree_filename, all_supports_list = supps)
 
-            avg_bs = float(sum(supps)) / float(len(supps))
+            if len(supps) == 0:
+                print(f"WARNING: That tree has no support value on its branches: {bs_iqtree_filename}")
+            else:
+                avg_bs = float(sum(supps)) / float(len(supps))
         else:
             print(f"Bootstrap tree {bs_iqtree_filename} does not exist")
 
@@ -271,7 +280,8 @@ for childdir in Path(directory).iterdir():
         #################################
         # RF VALS
         #################################
-        rf_ecce = get_rf_eccetera(str(childdir), i)
+        rf_ecce70 = get_rf_eccetera(str(childdir), i, 70)
+        rf_ecce50 = get_rf_eccetera(str(childdir), i, 50)
         rf_iqtree = get_rf_iqtree(str(childdir), i)
    
    
@@ -280,7 +290,8 @@ for childdir in Path(directory).iterdir():
         #################################
         # DONE, WRITE THE LINE
         #################################
-        line = f"{seed},{i},{sites},{duprate},{lossrate},{transferrate},{pop},{indelible_rate},{avg_bs},{avg_bs_bin},{nb_leaves},{avg_brlen},{height},{max_copy},{mean_copy},{rf_ecce},{rf_iqtree}"
+        line = f"{seed},{i},{sites},{duprate},{lossrate},{transferrate},{pop},{indelible_rate},{avg_bs},{avg_bs_bin},{nb_leaves},"
+        line += f"{avg_brlen},{height},{max_copy},{mean_copy},{rf_ecce70},{rf_ecce50},{rf_iqtree}"
    
         #print(line)
         outfile.write(line + "\n")

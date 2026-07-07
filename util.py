@@ -142,7 +142,7 @@ def write_to_file(filename, contents):
 
 
 
-def make_dir(path, clear_if_exists = True):
+def make_dir(path, clear_if_exists = False):
     dir_path = Path(path)
 
     if clear_if_exists and dir_path.exists():

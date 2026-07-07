@@ -83,7 +83,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--eccetera_bs",
-    type=float,
+    type=int,
     default=70,
     help="Threshold for eccetera to collapse branches"
 )
@@ -414,7 +414,7 @@ for rep in range(1, args.rep+1):
     for i in range(1, args.genes + 1):
         gtreefile = gene_tree_files_with_bs_nozero[i-1]
         
-        eccetera_gfilename = gtreefile + ".eccetera"
+        eccetera_gfilename = gtreefile + f".{bs_threshold}.eccetera"
         eccetera_corrected_trees[i-1] = eccetera_gfilename
 
         #example
@@ -443,7 +443,7 @@ for rep in range(1, args.rep+1):
     # step 4: compute *unrooted* RF values
     ##################################################################################
     rfdir = os.path.join(output_dir, "rf")
-    util.make_dir( rfdir )
+    util.make_dir( rfdir, clear_if_exists = False )
     for i in range(1, args.genes + 1):
         gfile = gene_tree_files_with_bs[i-1]
         eccetera_gfile = eccetera_corrected_trees[i-1]
@@ -458,7 +458,7 @@ for rep in range(1, args.rep+1):
             
             
             util.write_to_file( os.path.join(rfdir, f"{args.phylomethod}_{i}.rf"), str(urf_phylomethod) )
-            util.write_to_file( os.path.join(rfdir, f"eccetera_{i}.rf"), str(urf_eccetera) )
+            util.write_to_file( os.path.join(rfdir, f"eccetera{args.eccetera_bs}_{i}.rf"), str(urf_eccetera) )
             
             #outstr = f"urf_phylomethod={urf_phylomethod}\nurf_eccetera={urf_eccetera}"
             #print(outstr)

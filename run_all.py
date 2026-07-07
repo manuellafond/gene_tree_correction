@@ -12,21 +12,25 @@ transfermult_list = [1]  #for now just testing with baseline transfer rates
 
 pop_list = [10, 1e7, 1e8, 1e9]
 
+
 #sites = [100, 300, 500]
 sites_list = [300]
 
 
+#eccetera_thresholds = [50, 70]
+eccetera_thresholds = [50]
 
 
-for dl, tr, pop, sites in product(dlmult_list, transfermult_list, pop_list, sites_list):
+for dl, tr, pop, sites, ecce_threshold in product(dlmult_list, transfermult_list, pop_list, sites_list, eccetera_thresholds):
 
-    #eg run: python run_exp.py --phylomethod=iqtree --skipexisting -r 25 --sites=300 --dlrate=2 --trate=1 --pop=10000000 -o my_exp_p1e7_dl2_t1_s300
+    #eg run: python run_exp.py --phylomethod=iqtree --skipexisting -r 25 --sites=300 --dlrate=2 --trate=1 --pop=10000000 --eccetera_bs=70 -o my_exp_p1e7_dl2_t1_s300
     
     pop = int(pop)  #otherwise it uses float and causes errors
     
     outdir = f"allexp_p{pop}_dl{dl}_t{tr}_s{sites}"
     
-    command = f"python run_exp.py --phylomethod=iqtree --skipexisting -r {runs} --sites={sites} --dlrate={dl} --trate={tr} --pop={pop} -o {outdir}"
+    command = f"python run_exp.py --phylomethod=iqtree --skipexisting -r {runs} --sites={sites} --dlrate={dl} --trate={tr} "
+    command += f" --eccetera_bs={ecce_threshold} --pop={pop} -o {outdir}"
     
     print("Running: " + command)
     
