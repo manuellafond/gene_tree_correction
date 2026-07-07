@@ -360,7 +360,7 @@ def first_word_from_file(filename):
 
 
 
-def run_iqtree_on_all(alignment_files, output_dir, nb_bootstrap = 1000, skip_existing = True):
+def run_iqtree_on_all(alignment_files, output_dir, nb_bootstrap = 1000, skip_existing = True, iqtree_bin = "iqtree"):
 
     #no outgroup??
 
@@ -378,7 +378,7 @@ def run_iqtree_on_all(alignment_files, output_dir, nb_bootstrap = 1000, skip_exi
        shutil.copy(afile, afilecopy_filename)
        
        
-       command = f"iqtree -s {afilecopy_filename} -nt 4 -m JC -B {nb_bootstrap} --redo"
+       command = f"{iqtree_bin} -s {afilecopy_filename} -nt 4 -m JC -B {nb_bootstrap} --redo"
     
     
        treefilename = afilecopy_filename + ".treefile"

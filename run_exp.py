@@ -116,16 +116,33 @@ parser.add_argument(
 
 
 parser.add_argument(
-    "--simphybin",
+    "--simphydir",
     help="Full path to the directory containing the Simphy bin dir", 
     default="/home/manuel/SimPhy/"
 )
+
+parser.add_argument(
+    "--simphybin",
+    help="Full path to the directory containing the Simphy bin dir", 
+    default="/home/manuel/SimPhy/bin/simphy"
+)
+
+
 
 
 parser.add_argument(
     "--pargenesbin",
     help="Full path to pargenes", 
     default="/home/manuel/git/ParGenes/pargenes/pargenes.py"
+)
+
+
+
+
+parser.add_argument(
+    "--iqtreebin",
+    help="Full path to iqtree", 
+    default="iqtree"
 )
 
 
@@ -186,7 +203,8 @@ reps = range(1, args.rep + 1)
 for rep in range(1, args.rep+1):
     
     
-    GFWS.simphy_path = args.simphybin
+    GFWS.simphy_path = args.simphydir
+    GFWS.simphy_bin = args.simphybin
     
     params = GFWS.SimphyParameters()   #GFWS = BMorel's simphy script
 
@@ -375,7 +393,7 @@ for rep in range(1, args.rep+1):
     
     
         if len(alignment_files) > 0:
-            util.run_iqtree_on_all(alignment_files, iqtree_dir, skip_existing = args.skipexisting)
+            util.run_iqtree_on_all(alignment_files, iqtree_dir, skip_existing = args.skipexisting, iqtree_bin = args.iqtreebin)
             
         
         gene_tree_files = [""] * args.genes

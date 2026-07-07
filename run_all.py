@@ -17,8 +17,25 @@ pop_list = [10, 1e7, 1e8, 1e9]
 sites_list = [300]
 
 
-#eccetera_thresholds = [50, 70]
+#eccetera_thresholds = [50,70]
 eccetera_thresholds = [50]
+
+#CHANGE PATH TO EXECUTABLES HERE
+
+simphy_dir = "/home/manuel/git/SimPhy_1.0.2/"
+simphy_bin = "/home/manuel/git/SimPhy_1.0.2/bin/simphy_lnx32"    #BMorel's script needs both simphy path and the bin
+
+#iqtree version must be >= 3
+iqtree_bin = "/home/manuel/git/iqtree-3.1.3-Linux/bin/iqtree3"
+
+
+eccetera_bin = "/home/manuel/git/ecceTERA/bin/ecceTERA"
+
+#INDELible must also be installed.  The executable must be in the system PATH, ie we need to be able to launch the command
+#> indelible
+#To change that, modify generate_families_with_simphy.py
+
+
 
 
 for dl, tr, pop, sites, ecce_threshold in product(dlmult_list, transfermult_list, pop_list, sites_list, eccetera_thresholds):
@@ -31,6 +48,9 @@ for dl, tr, pop, sites, ecce_threshold in product(dlmult_list, transfermult_list
     
     command = f"python run_exp.py --phylomethod=iqtree --skipexisting -r {runs} --sites={sites} --dlrate={dl} --trate={tr} "
     command += f" --eccetera_bs={ecce_threshold} --pop={pop} -o {outdir}"
+    
+    #set all binary paths
+    command += f" --iqtreebin={iqtree_bin} --simphydir={simphy_dir} --simphybin={simphy_bin} --ecceterabin={eccetera_bin} "
     
     print("Running: " + command)
     
