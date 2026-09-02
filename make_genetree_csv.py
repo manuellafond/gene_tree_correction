@@ -22,14 +22,10 @@ parser.add_argument(
 )
 
 
-
 parser.add_argument(
     "-o", "--outfile",
     help="Name of output csv file."
 )
-
-
-
 
 
 parser.add_argument(
@@ -38,13 +34,19 @@ parser.add_argument(
     help="Set to append rows to the specified csv file.  Otherwise will overwrite.  Note, if append is set, header row will not be appended."
 )
 
+#parser.add_argument(
+#    "--eccetera_bs",
+#    type=float,
+#   default=70,
+#    help="Threshold for eccetera to collapse branches"
+#)
 
 
 args = parser.parse_args()
 
 
 
-
+#eccetera_bs = args.eccetera_bs
 
 
 
@@ -61,21 +63,24 @@ def get_rf_iqtree(basedir, treenum):
     return rf
 
 
-
-def get_rf_eccetera(basedir, treenum, bootstrap_threshold):
+#sptree method can be either simphy, or apro.
+def get_rf_eccetera(basedir, treenum, eccetera_bs, sptree_method = "simphy"):
     
     #TODO: copypasta from previous function
+    filename = os.path.join(basedir, "rf", "eccetera_" + str(treenum) + "_"  + str(eccetera_bs))
     
-    if bootstrap_threshold == 70:
-        filename = os.path.join(basedir, "rf", "eccetera_" + str(treenum) + ".rf")
-        if not os.path.isfile(filename):
-            filename = os.path.join(basedir, "rf", "eccetera70_" + str(treenum) + ".rf")
-    else:
-        filename = os.path.join(basedir, "rf", f"eccetera{bootstrap_threshold}_" + str(treenum) + ".rf")
+    if sptree_method == "apro":
+        filename += "_apro"
+    
+    filename += ".rf"
     
     if not os.path.isfile(filename):
+        #print("not found " , filename)
         return -1
-    
+    #else:
+    #print("OK", filename)
+
+
     with open(filename, "r") as f:
         rf = float(f.read().strip())
         
@@ -187,8 +192,15 @@ write_mode = "a" if args.append else "w"
 outfile = open(args.outfile, write_mode)
 
 
+header = (
+    "seed,gtnum,sites,duprate,lossrate,transferrate,pop,"
+    "indelible_rate,avg_bs_iqtree,avg_bs_iqtree_bin,"
+    "nb_leaves,avg_brlen,height,max_copy,mean_copy,"
+    "rf_eccetera_50.0,rf_eccetera_70.0,rf_iqtree,"
+    "rf_eccetera_50.0_apro,rf_eccetera_70.0_apro"
+)
 
-header = "seed,gtnum,sites,duprate,lossrate,transferrate,pop,indelible_rate,avg_bs_iqtree,avg_bs_iqtree_bin,nb_leaves,avg_brlen,height,max_copy,mean_copy,rf_eccetera_70,rf_eccetera_50,rf_iqtree"
+#header = "seed,gtnum,sites,duprate,lossrate,transferrate,pop,indelible_rate,avg_bs_iqtree,avg_bs_iqtree_bin,nb_leaves,avg_brlen,height,max_copy,mean_copy,rf_eccetera,rf_iqtree"
 #print(header)
 
 if not args.append:
@@ -249,10 +261,7 @@ for childdir in Path(directory).iterdir():
             supps = []
             util.count_support_bins(bs_iqtree_filename, all_supports_list = supps)
 
-            if len(supps) == 0:
-                print(f"WARNING: That tree has no support value on its branches: {bs_iqtree_filename}")
-            else:
-                avg_bs = float(sum(supps)) / float(len(supps))
+            avg_bs = float(sum(supps)) / float(len(supps))
         else:
             print(f"Bootstrap tree {bs_iqtree_filename} does not exist")
 
@@ -280,19 +289,31 @@ for childdir in Path(directory).iterdir():
         #################################
         # RF VALS
         #################################
-        rf_ecce70 = get_rf_eccetera(str(childdir), i, 70)
-        rf_ecce50 = get_rf_eccetera(str(childdir), i, 50)
+#        rf_ecce = get_rf_eccetera(str(childdir), i, eccetera_bs)
+#        rf_iqtree = get_rf_iqtree(str(childdir), i)
+
+        rf_ecce_50 = get_rf_eccetera(str(childdir), i, 50)
+        rf_ecce_70 = get_rf_eccetera(str(childdir), i, 70)
         rf_iqtree = get_rf_iqtree(str(childdir), i)
-   
+        
+        rf_ecce_50_apro = get_rf_eccetera(str(childdir), i, 50, sptree_method = "apro")
+        rf_ecce_70_apro = get_rf_eccetera(str(childdir), i, 70, sptree_method = "apro")
    
    
    
         #################################
         # DONE, WRITE THE LINE
         #################################
-        line = f"{seed},{i},{sites},{duprate},{lossrate},{transferrate},{pop},{indelible_rate},{avg_bs},{avg_bs_bin},{nb_leaves},"
-        line += f"{avg_brlen},{height},{max_copy},{mean_copy},{rf_ecce70},{rf_ecce50},{rf_iqtree}"
+        #line = f"{seed},{i},{sites},{duprate},{lossrate},{transferrate},{pop},{indelible_rate},{avg_bs},{avg_bs_bin},{nb_leaves},{avg_brlen},{height},{max_copy},{mean_copy},{rf_ecce},{rf_iqtree}"
    
+        line = (
+        f"{seed},{i},{sites},{duprate},{lossrate},{transferrate},{pop},"
+        f"{indelible_rate},{avg_bs},{avg_bs_bin},"
+        f"{nb_leaves},{avg_brlen},{height},{max_copy},{mean_copy},"
+        f"{rf_ecce_50},{rf_ecce_70},{rf_iqtree},"
+        f"{rf_ecce_50_apro},{rf_ecce_70_apro}"
+        
+        )
         #print(line)
         outfile.write(line + "\n")
    

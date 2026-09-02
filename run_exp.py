@@ -83,7 +83,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--eccetera_bs",
-    type=int,
+    type=float,
     default=70,
     help="Threshold for eccetera to collapse branches"
 )
@@ -128,15 +128,11 @@ parser.add_argument(
 )
 
 
-
-
 parser.add_argument(
     "--pargenesbin",
     help="Full path to pargenes", 
     default="/home/manuel/git/ParGenes/pargenes/pargenes.py"
 )
-
-
 
 
 parser.add_argument(
@@ -187,6 +183,36 @@ parser.add_argument(
 
 
 
+
+
+######################################
+# ASTRAL-PRO arguments
+######################################
+parser.add_argument(
+    "--apro_mode",
+    action="store_true",
+    help="Set to run astral pro.  Species tree will be in simphy dir, named s_tree.trees.apro.  eccetera will use that tree."
+)
+
+
+parser.add_argument(
+    "--apro_libpath",
+    help="Directory that contains the Astral-Pro binaries", 
+    default="/home/manuel/git/A-pro/ASTRAL-MP/lib"
+)
+
+
+parser.add_argument(
+    "--apro_binname",
+    help="Name of the binary file of Astral-Pro (the java jar file)", 
+    default="/home/manuel/git/A-pro/ASTRAL-MP/astral.1.1.6.jar"
+)
+
+
+
+
+
+
 args = parser.parse_args()
 
 
@@ -194,9 +220,29 @@ args = parser.parse_args()
 #TODO : do not hardcode this
 generax_bin = args.generaxbin
 
-
 reps = range(1, args.rep + 1) 
 
+
+############################################
+# Helper functions
+#returns suffix of eccetera files depending on parameters
+def get_eccetera_suffix(bs_threshold, sptree_method):
+    suffix = f"_{bs_threshold}"
+
+    if sptree_method != "simphy":
+        suffix += f"_{sptree_method}"
+    
+    return suffix
+
+
+def get_sptree_filename_by_method(sptree_method, output_dir):
+    if sptree_method == "simphy":
+        return os.path.join(output_dir, "1", "s_tree.trees")
+    elif sptree_method == "apro":
+        return os.path.join(output_dir, "1", "s_tree.trees.apro")
+        
+
+############################################
 
 
 
@@ -224,7 +270,7 @@ for rep in range(1, args.rep+1):
     output_dir = GFWS.get_output_dir(params, args.outrootdir)
     
     
-    simphy_species_tree_file = os.path.join(output_dir, "1", "s_tree.trees")
+    simphy_species_tree_file = get_sptree_filename_by_method("simphy", output_dir)
     simphy_gene_tree_files = [""] * args.genes
     for i in range(1, args.genes + 1):
         simphy_gene_tree_files[i-1] = os.path.join(output_dir, "1", f"g_trees{i:03d}.trees")
@@ -238,6 +284,14 @@ for rep in range(1, args.rep+1):
         GFWS.generate_from_parameters(params, args.outrootdir)
 
 
+
+    ##################################################################################
+    # step 1.1: run Astral-Pro to infer a species tree, if needed
+    ##################################################################################
+    if args.apro_mode:
+        apro_workfile = os.path.join(output_dir, "1", "apro.trees")
+        apro_outfile = get_sptree_filename_by_method("apro", output_dir)
+        util.run_apro_from_symphy(simphy_gene_tree_files, apro_workfile, apro_outfile, apro_lib_path = args.apro_libpath, apro_bin_path = args.apro_binname)
 
 
     
@@ -418,68 +472,106 @@ for rep in range(1, args.rep+1):
             gene_tree_files_with_bs_nozero[i-1] = nozero_file
             
     
+    ##################################################################################
+    # step 3: run eccetera on the bootstrap trees
+    # NOTE: if args.apro_mode is set, will *also* use stree.trees.apro, not simphy's tree
+    ##################################################################################
+
+    
+    eccetera_corrected_trees = {}
+
+    error_log = "eccetera_errors.log"
+    
+    possible_bootstraps = [50, 70]
+    
+    possible_sptree_methods = ["simphy"]
+    if args.apro_mode:
+        possible_sptree_methods.append("apro")
+    
+
+    for bs_threshold in possible_bootstraps:
+        for sptree_method in possible_sptree_methods:
+
+            eccetera_suffix = get_eccetera_suffix(bs_threshold, sptree_method)
+
+            eccetera_corrected_trees[(bs_threshold, sptree_method)] = [""] * args.genes
+
+            for i in range(1, args.genes + 1):
+                gtreefile = gene_tree_files_with_bs_nozero[i-1]
+
+                eccetera_gfilename = gtreefile + ".eccetera" + eccetera_suffix
+                eccetera_corrected_trees[(bs_threshold, sptree_method)][i-1] = eccetera_gfilename
+
+                sptree_for_eccetera = get_sptree_filename_by_method(sptree_method, output_dir) 
+
+                if os.path.exists(gtreefile):
+                    command = f"{args.ecceterabin} species.file={sptree_for_eccetera} gene.file={gtreefile} dated=0 compute.T=false "
+                    command += f"collapse.threshold={bs_threshold} collapse.mode=1 resolve.trees=1 verbose=true amalgamate=false "    
+                    command += f"print.newick=true print.newick.gene.tree.file={eccetera_gfilename} degree.limit=12 "
+
+                    print(f"Executing\n{command}")
+
+                    skip = args.skipeccetera
+                    if args.skipexisting and os.path.exists(eccetera_gfilename):
+                        skip = True
+
+                    if not skip:
+                        os.system(command)
+
+                        if not os.path.exists(eccetera_gfilename):
+                            with open(error_log, "a") as err:
+                                err.write(f"ERROR: ecceTERA did not create {eccetera_gfilename} "        
+                                          f"(gene tree: {gtreefile}, threshold={bs_threshold})\n")
+
+                else:
+                    print(f"{gtreefile} does not exist, skipping ecceTERA")
+                    with open(error_log, "a") as err:
+                        err.write(f"ERROR: {gtreefile} does not exist "    
+                                  f"(threshold={bs_threshold})\n")
                 
             
     
     
-    ##################################################################################    
-    # step 3: run eccetera on the bootstrap trees
     ##################################################################################
-    
-    eccetera_corrected_trees = [""] * args.genes
-    
-    bs_threshold = args.eccetera_bs
-    for i in range(1, args.genes + 1):
-        gtreefile = gene_tree_files_with_bs_nozero[i-1]
-        
-        eccetera_gfilename = gtreefile + f".{bs_threshold}.eccetera"
-        eccetera_corrected_trees[i-1] = eccetera_gfilename
-
-        #example
-        #/home/manuel/git/ecceTERA/bin/ecceTERA species.file=run_exp_out/ssim_dtl_s25_f100_sites100_GTR_bl1.0_d1_l1_t1.0_gc0.0_p0.0_pop10_ms0.0_mf0.0_seed3001/1/s_tree.trees gene.file=run_exp_out/ssim_dtl_s25_f100_sites100_GTR_bl1.0_d1_l1_t1.0_gc0.0_p0.0_pop10_ms0.0_mf0.0_seed3001/pargenes/trees/supports_run/results/dataset_002_TRUE_phy.support.raxml.support dated=0 compute.T=false collapse.threshold=70 collapse.mode=1 resolve.trees=1 verbose=true print.newick=true print.newick.gene.tree.file=run_exp_out/ssim_dtl_s25_f100_sites100_GTR_bl1.0_d1_l1_t1.0_gc0.0_p0.0_pop10_ms0.0_mf0.0_seed3001/pargenes/trees/supports_run/results/dataset_002_TRUE_phy.support.raxml.support.eccetera
-        
-        if os.path.exists(gtreefile):
-            command = f"{args.ecceterabin} species.file={simphy_species_tree_file} gene.file={gtreefile} dated=0 compute.T=false "
-            command += f"collapse.threshold={bs_threshold} collapse.mode=1 resolve.trees=1 verbose=true amalgamate=false "
-            command += f"print.newick=true print.newick.gene.tree.file={eccetera_gfilename} degree.limit=12 "
-
-            print(f"Executing\n{command}")
-            
-            skip = args.skipeccetera
-            if args.skipexisting and os.path.exists(eccetera_gfilename):
-                skip = True
-            
-            if not skip:     
-                os.system(command)
-
-        else:
-            print(f"{gtreefile} does not exist, skipping eccetera")            
-
-
-
-    ##################################################################################    
     # step 4: compute *unrooted* RF values
+    # NOTE: for eccetera RF, uses eccetera_suffix from above
     ##################################################################################
     rfdir = os.path.join(output_dir, "rf")
-    util.make_dir( rfdir, clear_if_exists = False )
+    util.make_dir(rfdir)
+
     for i in range(1, args.genes + 1):
         gfile = gene_tree_files_with_bs[i-1]
-        eccetera_gfile = eccetera_corrected_trees[i-1]
         simphy_gfile = simphy_gene_tree_files[i-1]
-        
-        if os.path.exists(gfile) and os.path.exists(eccetera_gfile):
+
+        if os.path.exists(gfile):
             print(f"comparing\n{gfile}\n{simphy_gfile}")
             urf_phylomethod = util.ete3_rf(gfile, simphy_gfile)
+
+            util.write_to_file(
+                os.path.join(rfdir, f"{args.phylomethod}_{i}.rf"),
+                str(urf_phylomethod)
+            )
+
+            for bs_threshold in possible_bootstraps:
+                for sptree_method in possible_sptree_methods:
+
+                    eccetera_suffix = get_eccetera_suffix(bs_threshold, sptree_method)
             
-            print(f"comparing\n{eccetera_gfile}\n{simphy_gfile}")
-            urf_eccetera = util.ete3_rf(eccetera_gfile, simphy_gfile)
+                    eccetera_gfile = eccetera_corrected_trees[(bs_threshold, sptree_method)][i-1]
+
+                    if os.path.exists(eccetera_gfile):
+                        print(f"comparing\n{eccetera_gfile}\n{simphy_gfile}")
+                        urf_eccetera = util.ete3_rf(eccetera_gfile, simphy_gfile)
+
+                        util.write_to_file(
+                            os.path.join(rfdir, f"eccetera_{i}{eccetera_suffix}.rf"),
+                            str(urf_eccetera)
+                        )
+
+                        #outstr = f"urf_phylomethod={urf_phylomethod}\nurf_eccetera={urf_eccetera}"
+                        #print(outstr) 
             
-            
-            util.write_to_file( os.path.join(rfdir, f"{args.phylomethod}_{i}.rf"), str(urf_phylomethod) )
-            util.write_to_file( os.path.join(rfdir, f"eccetera{args.eccetera_bs}_{i}.rf"), str(urf_eccetera) )
-            
-            #outstr = f"urf_phylomethod={urf_phylomethod}\nurf_eccetera={urf_eccetera}"
-            #print(outstr)
-            
-            
+
+
+
 

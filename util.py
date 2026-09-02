@@ -43,7 +43,7 @@ def run_iqtree(seqfile, bootstrap_replicates = 1000):
 
 #calls astral-pro.  The script concatenates all tree_files into work_file
 #The gene names are converted to species names, eg 25_10_5 becomes 25
-def run_apro_from_symphy(tree_files, work_file, out_file):
+def run_apro_from_symphy(tree_files, work_file, out_file, apro_lib_path = "/home/manuel/git/A-pro/ASTRAL-MP/lib", apro_bin_path = "/home/manuel/git/A-pro/ASTRAL-MP/astral.1.1.6.jar"):
     
     strout = ""
     
@@ -64,8 +64,9 @@ def run_apro_from_symphy(tree_files, work_file, out_file):
         f.write(strout)
             
 
-    command = f'java -D"java.library.path=/home/manuel/git/A-pro/ASTRAL-MP/lib" -jar /home/manuel/git/A-pro/ASTRAL-MP/astral.1.1.6.jar -i {work_file} -o {out_file}'
+    command = f'java -D"java.library.path={apro_lib_path}" -jar {apro_bin_path} -i {work_file} -o {out_file}'
     print("Running " + command)
+    
     
     os.system(command)
 
