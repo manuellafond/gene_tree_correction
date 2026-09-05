@@ -100,7 +100,7 @@ for dl, tr, pop, sites, ecce_threshold in product(dlmult_list, transfermult_list
     
     print("Running: " + command)
     
-    #os.system(command)
+    os.system(command)
 
 
 
