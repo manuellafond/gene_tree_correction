@@ -58,6 +58,18 @@ apro_binname = "/home/manuel/git/A-pro/ASTRAL-MP/astral.1.1.6.jar"
 
 
 
+use_nni = True
+nni_k_list = "1 2 10"   #list of nb nnis to try
+
+
+
+use_nni_clusters = True
+nni_clusters_list = "1 2 3"
+
+
+
+
+
 
 for dl, tr, pop, sites, ecce_threshold in product(dlmult_list, transfermult_list, pop_list, sites_list, eccetera_thresholds):
 
@@ -76,6 +88,14 @@ for dl, tr, pop, sites, ecce_threshold in product(dlmult_list, transfermult_list
     
     if use_apro:
         command += f" --apro_mode --apro_libpath={apro_libpath} --apro_binname={apro_binname}"
+
+    if use_nni:        
+        command += f" --nni_mode --nni_k_list {nni_k_list}"
+
+
+    if use_nni_clusters:
+        command += f" --nnicluster_mode --nniclusters_list {nni_clusters_list}"
+
     
     
     print("Running: " + command)

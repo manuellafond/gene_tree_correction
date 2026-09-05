@@ -191,7 +191,8 @@ parser.add_argument(
 parser.add_argument(
     "--apro_mode",
     action="store_true",
-    help="Set to run astral pro.  Species tree will be in simphy dir, named s_tree.trees.apro.  eccetera will use that tree."
+    help="Set to run astral pro.  Species tree will be in simphy dir, named s_tree.trees.apro."  
+         "eccetera will use that tree, *in addition to* the simphy one."
 )
 
 
@@ -212,12 +213,69 @@ parser.add_argument(
 
 
 
+######################################
+# Random NNIs arguments
+######################################
+parser.add_argument(
+    "--nni_mode",
+    action="store_true",
+    help="Set to run eccetera but after applying --nni_k NNIs on the species tree. "
+         "Species tree will be in simphy dir, named s_tree.trees.nni_{k}.  "
+         "eccetera will use that tree, *in addition to* the simphy one."
+)
+
+
+#list of the number of random nnis to try
+#e.g., --nni_k_list '1 2 3'
+parser.add_argument(
+  "--nni_k_list",  
+  nargs="*",  
+  type=int,
+  default=[3]
+)
+
+
+
+
+######################################
+# Clustered NNIs arguments
+######################################
+parser.add_argument(
+    "--nnicluster_mode",
+    action="store_true",
+    help="Set to run eccetera but after applying 3 NNIs on the species tree. "
+         "These NNIs are 'clustered', meaning that they are applied consecutively around the same branch."
+         "(i.e., we choose a branch and the sibling branch (which changes) is relocated thrice."
+         "The idea is ti simulate a series of problems occurring in a small portion of the tree."
+)
+
+
+#list of the number of random nnis to try
+#e.g., --nniclusters_list '1 2 3'
+parser.add_argument(
+  "--nniclusters_list",  
+  nargs="*",  
+  type=int,
+  default=[3]
+)
+
+
+
+
+
+
+
+######################################
+# End of arguments
+######################################
+
+
+
+
 
 args = parser.parse_args()
 
 
-
-#TODO : do not hardcode this
 generax_bin = args.generaxbin
 
 reps = range(1, args.rep + 1) 
@@ -235,12 +293,19 @@ def get_eccetera_suffix(bs_threshold, sptree_method):
     return suffix
 
 
-def get_sptree_filename_by_method(sptree_method, output_dir):
+
+#for nni, expected format is nnirand_{k}
+def get_sptree_filename_by_method(sptree_method, output_dir, extra_args = []):
     if sptree_method == "simphy":
         return os.path.join(output_dir, "1", "s_tree.trees")
     elif sptree_method == "apro":
         return os.path.join(output_dir, "1", "s_tree.trees.apro")
-        
+    elif sptree_method.startswith("nnirand_"):
+        k = sptree_method.replace("nnirand_", "")
+        return os.path.join(output_dir, "1", f"s_tree.trees.nni_{k}")
+    elif sptree_method.startswith("nnicluster_"):
+        nbclusters = sptree_method.replace("nnicluster_", "")
+        return os.path.join(output_dir, "1", f"s_tree.trees.nnicluster_{nbclusters}")
 
 ############################################
 
@@ -292,6 +357,32 @@ for rep in range(1, args.rep+1):
         apro_workfile = os.path.join(output_dir, "1", "apro.trees")
         apro_outfile = get_sptree_filename_by_method("apro", output_dir)
         util.run_apro_from_symphy(simphy_gene_tree_files, apro_workfile, apro_outfile, apro_lib_path = args.apro_libpath, apro_bin_path = args.apro_binname)
+        
+        
+        
+    ##################################################################################
+    # step 1.2: perform NNIs on the species tree if command line asked for it
+    ##################################################################################
+    if args.nni_mode:
+        
+        for k in args.nni_k_list:
+            nni_outfile = get_sptree_filename_by_method(f"nnirand_{k}", output_dir)
+            print(nni_outfile)
+
+            util.random_nni(simphy_species_tree_file, k, nni_outfile)
+
+
+    ##################################################################################
+    # step 1.3: perform clustered NNIs on the species tree if command line asked for it
+    ##################################################################################
+    if args.nnicluster_mode:
+        
+        for nbclusters in args.nniclusters_list:
+            nnicluster_outfile = get_sptree_filename_by_method(f"nnicluster_{nbclusters}", output_dir)
+            print(nnicluster_outfile)
+
+            
+            util.cluster_nni(simphy_species_tree_file, nbclusters, nnicluster_outfile)
 
 
     
@@ -487,6 +578,16 @@ for rep in range(1, args.rep+1):
     possible_sptree_methods = ["simphy"]
     if args.apro_mode:
         possible_sptree_methods.append("apro")
+        
+    if args.nni_mode:
+        for k in args.nni_k_list:
+            possible_sptree_methods.append(f"nnirand_{k}")
+            
+    if args.nnicluster_mode:        
+        for nbclusters in args.nniclusters_list:            
+            possible_sptree_methods.append(f"nnicluster_{nbclusters}")
+            
+
     
 
     for bs_threshold in possible_bootstraps:

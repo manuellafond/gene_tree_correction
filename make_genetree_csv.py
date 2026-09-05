@@ -12,6 +12,17 @@ import math
 #Example usage
 # python make_genetree_csv.py -d=my_exp_p1e7_dl2_t1_s300/ -o test.csv
 
+
+#list of numbers of nnis tested to generate erroneous species trees (as given to run_exp.py)
+#each item of the list adds a column
+nni_k_list = [1,2,10]   #list of nb nnis to try
+
+#list of numbers of nnis clusters tested to generate erroneous species trees (as given to run_exp.py)
+#each item of the list adds a column
+nni_clusters_list = [1,2,3]
+
+
+
 parser = argparse.ArgumentParser(description="Goes through a directory created with run_exp.py, and outputs a csv file with all the info you might need.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 
@@ -69,8 +80,11 @@ def get_rf_eccetera(basedir, treenum, eccetera_bs, sptree_method = "simphy"):
     #TODO: copypasta from previous function
     filename = os.path.join(basedir, "rf", "eccetera_" + str(treenum) + "_"  + str(eccetera_bs))
     
-    if sptree_method == "apro":
-        filename += "_apro"
+    #if sptree_method == "apro":
+    #    filename += "_apro"
+    
+    if sptree_method != "simphy":
+        filename += "_" + sptree_method
     
     filename += ".rf"
     
@@ -200,6 +214,16 @@ header = (
     "rf_eccetera_50.0_apro,rf_eccetera_70.0_apro"
 )
 
+
+for k in nni_k_list:
+    header += ",rf_eccetera_50.0_nni_" + str(k)
+    header += ",rf_eccetera_70.0_nni_" + str(k)
+
+for nbclusters in nni_clusters_list:
+    header += ",rf_eccetera_50.0_nnicluster_" + str(nbclusters)
+    header += ",rf_eccetera_70.0_nnicluster_" + str(nbclusters)
+
+
 #header = "seed,gtnum,sites,duprate,lossrate,transferrate,pop,indelible_rate,avg_bs_iqtree,avg_bs_iqtree_bin,nb_leaves,avg_brlen,height,max_copy,mean_copy,rf_eccetera,rf_iqtree"
 #print(header)
 
@@ -307,14 +331,29 @@ for childdir in Path(directory).iterdir():
         #line = f"{seed},{i},{sites},{duprate},{lossrate},{transferrate},{pop},{indelible_rate},{avg_bs},{avg_bs_bin},{nb_leaves},{avg_brlen},{height},{max_copy},{mean_copy},{rf_ecce},{rf_iqtree}"
    
         line = (
-        f"{seed},{i},{sites},{duprate},{lossrate},{transferrate},{pop},"
-        f"{indelible_rate},{avg_bs},{avg_bs_bin},"
-        f"{nb_leaves},{avg_brlen},{height},{max_copy},{mean_copy},"
-        f"{rf_ecce_50},{rf_ecce_70},{rf_iqtree},"
-        f"{rf_ecce_50_apro},{rf_ecce_70_apro}"
-        
+            f"{seed},{i},{sites},{duprate},{lossrate},{transferrate},{pop},"
+            f"{indelible_rate},{avg_bs},{avg_bs_bin},"
+            f"{nb_leaves},{avg_brlen},{height},{max_copy},{mean_copy},"
+            f"{rf_ecce_50},{rf_ecce_70},{rf_iqtree},"
+            f"{rf_ecce_50_apro},{rf_ecce_70_apro}"        
         )
-        #print(line)
+        
+        
+        for k in nni_k_list:
+            rftemp = get_rf_eccetera(str(childdir), i, 50, sptree_method = "nnirand_" + str(k))
+            line += f",{rftemp}"
+            
+            rftemp = get_rf_eccetera(str(childdir), i, 70, sptree_method = "nnirand_" + str(k))
+            line += f",{rftemp}"
+
+        for nbclusters in nni_clusters_list:
+            rftemp = get_rf_eccetera(str(childdir), i, 50, sptree_method = "nnicluster_" + str(nbclusters))
+            line += f",{rftemp}"
+            
+            rftemp = get_rf_eccetera(str(childdir), i, 70, sptree_method = "nnicluster_" + str(nbclusters))
+            line += f",{rftemp}"
+        
+        
         outfile.write(line + "\n")
    
     print("Done with " + str(childdir))

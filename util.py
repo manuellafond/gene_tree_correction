@@ -12,6 +12,7 @@ import re
 from collections import defaultdict
 
 
+
 def run_raxml(seqfile, raxmlbin, returned_collapsed_treefile = False):
     
     
@@ -524,6 +525,169 @@ def parse_sim_params_from_dir(dirname):
     seed = dirname.split("_")[-1].replace("seed", "")
     
     return X, A, B, C, P, seed
+
+
+
+
+
+
+
+
+
+
+#disclaimer: this is partial chatgpt
+def nni_move(node, swap=None):
+    """
+    Perform one NNI (Nearest Neighbor Interchange) move on an internal edge.
+
+    Parameters
+    ----------
+    node : ete3.TreeNode
+        An internal node whose parent defines the internal edge to
+        rearrange. Both `node` and `node.up` must have exactly two children.
+
+    swap : int or None, optional
+        Which child of `node` to swap with the sibling subtree.
+        0 swaps the first child, 1 swaps the second child.
+        node.children[swap] becomes a child of node.parent
+        If None, one of the two possibilities is chosen randomly.
+        
+
+
+    Raises
+    ------
+    ValueError
+        If the selected edge is not suitable for an NNI move.
+    """
+
+    if node.is_leaf():
+        raise ValueError("NNI requires an internal node.")
+
+    parent = node.up
+
+    if parent is None:
+        raise ValueError("NNI requires an internal edge; the root has no parent.")
+
+    if len(node.children) != 2:
+        raise ValueError("The selected node must have exactly two children.")
+
+    if len(parent.children) != 2:
+        raise ValueError("The parent node must have exactly two children.")
+
+    if swap is None:
+        swap = random.randint(0, 1)
+
+    if swap not in (0, 1):
+        raise ValueError("swap must be 0, 1, or None.")
+
+    #ML checked chatgpt's code below, that should work
+    # The two subtrees descending from node
+    child = node.children[swap]
+
+    # The subtree on the other side of the internal edge
+    sibling = parent.children[0] if parent.children[1] is node else parent.children[1]
+
+    # Exchange the two subtrees.
+    node.remove_child(child)
+    parent.remove_child(sibling)
+
+    node.add_child(sibling)
+    parent.add_child(child)
+
+    return node
+
+
+
+
+#input_file: must contain a binary tree in newick format
+#k: number of random NNI moves to apply
+#output_file:where to write the resulting tree
+def random_nni(input_file, k, output_file):
+    tree = Tree(input_file, format=1)
+
+    moves = 0
+
+    while moves < k:
+        candidates = [
+            node for node in tree.traverse()
+            if not node.is_leaf()
+            and node.up is not None
+            and len(node.children) == 2
+            and len(node.up.children) == 2
+        ]
+
+        if not candidates:
+            raise ValueError("No valid NNI edges found.")
+
+        node = random.choice(candidates)
+
+        nni_move(node)
+        moves += 1
+
+    tree.write(outfile=output_file, format=1)
+
+
+
+
+#input_file: must contain a binary tree in newick format
+#nbclusters: number of clusters of NNI (for each cluster, we choose a random 
+#            branch to NNI on, and make three consecutive such NNIs on it
+#output_file:where to write the resulting tree
+def cluster_nni(input_file, nbclusters, output_file):
+    tree = Tree(input_file, format=1)
+
+    moves = 0
+
+    while moves < nbclusters:
+        candidates = [
+            node for node in tree.traverse()
+            if not node.is_leaf()
+            and node.up is not None
+            and node.up.up is not None
+            and node.up.up.up is not None
+            and len(node.children) == 2
+            and len(node.up.children) == 2
+            and len(node.up.up.children) == 2
+            and len(node.up.up.up.children) == 2
+        ]
+
+        if not candidates:
+            #moves += 1
+            #continue
+            raise ValueError("No valid NNI edges found.")
+
+
+        #do three moves
+        node = random.choice(candidates)
+        
+        nni_move(node)
+        
+        #second move: swap on the branch not leading to node (otherwise, it will just cancel the nni)
+        swap = (0 if node.up.children[1] is node else 1)
+        node = node.up
+        nni_move(node, swap = swap)
+        
+        #third move, same
+        swap = (0 if node.up.children[1] is node else 1)
+        node = node.up
+        nni_move(node, swap = swap)
+        
+        
+        moves += 1
+
+    tree.write(outfile=output_file, format=1)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
