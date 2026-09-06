@@ -31,7 +31,7 @@ simphy directory).
 It will then run eccetera using this species tree --- in addition to running eccetera with the simphy species tree.
 
 You need to specify where to find Astral-Pro using
-> --apro_libpath=[your path to the lib directory of Astral_pro]
+> --apro_mode --apro_libpath=[your path to the lib directory of Astral_pro]
 > --apro_binname=[your path to the Astral-Pro jar file]
 
 See the maximal example below.
@@ -43,7 +43,7 @@ See the maximal example below.
 If you add --nni_mode, run_exp.py will apply random NNIs on the simphy species tree.  You can specify a list of random NNIs to apply, and a species tree will be generated 
 for each number in that list.  For example
 
-> --nni_k_list 1 2 10 
+> --nni_mode --nni_k_list 1 2 10 
 
 will generate one species tree obtained from one NNI, then another species tree with 2 NNI, then another with 10 NNI.
 
