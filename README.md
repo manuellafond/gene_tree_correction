@@ -34,7 +34,7 @@ You need to specify where to find Astral-Pro using
 > --apro_libpath=[your path to the lib directory of Astral_pro]
 > --apro_binname=[your path to the Astral-Pro jar file]
 
-See the maximal exmaple below.
+See the maximal example below.
 
 
 
